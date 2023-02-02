@@ -1,6 +1,6 @@
 # Turtle invaded - A Space Invaders clone
 
-Turtle invaded is a space invaders clone made with the Defold game engine. The objective is to destroy the aliens before they reach the bottom of the screen. The game features increasing levels of difficulty and rewards players with points for each enemy defeated. I used the Defold game engine to make Turtle invaded, thank you  SparklinLabs for the assets. You can play the game here: https://iskream23.itch.io/turtle-invaded
+Turtle invaded is a space invaders clone made with the Defold game engine. The objective is to destroy the aliens before they reach the bottom of the screen. The game features increasing levels of difficulty and rewards players with points for each enemy defeated. Thank you  SparklinLabs for the 2D game assets (https://www.patreon.com/SparklinLabs?ty=h). You can play the game here: https://iskream23.itch.io/turtle-invaded
 
 ## Installation and usage
 
