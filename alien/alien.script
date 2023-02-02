@@ -1,0 +1,173 @@
+-- Game resolution: 938 x 503
+
+local aliens = {} -- All aliens currently alive
+local alive = 0 -- Number of aliens alive
+local fire_timestamp = 0 -- Timestamp when the aliens fired
+local fire_interval = 1 -- Interval at which the aliens should fire
+local vertical_duration = 0.1 -- Default speed of alien movement when moving down
+local horizontal_duration = 0.5 -- Default speed of alien movement when moving left/right (initial value is 1.4)
+
+--- Is this alien in the front row? (ie nearest the player)
+-- @return true if alien is in the front row
+local function is_in_front_row()
+	local my_pos = go.get_position()
+	for _,alien in pairs(aliens) do
+		local pos = go.get_position(alien.id)
+		if my_pos.x == pos.x and my_pos.y > pos.y then
+			return false
+		end
+	end
+	return true
+end
+
+--- Get minimum distance from all aliens to the left edge of the screen
+-- @return Minimum distance to left edge of screen
+local function get_minimum_distance_to_left_edge()
+	local distance = 700 -- x of the furthest alien
+	for _,alien in pairs(aliens) do
+		local pos = go.get_position(alien.id)
+		distance = math.min(pos.x - 100, distance)
+	end
+	return distance
+end
+
+--- Get minimum distance from all aliens to right edge of the screen
+-- @return Minimum distance to the right edge of the screen
+local function get_minimum_distance_to_right_edge()
+	local distance = 810 -- width of the screen
+	for _,alien in pairs(aliens) do
+		local pos = go.get_position(alien.id)
+		distance = math.min(810 - pos.x, distance)
+	end
+	return distance
+end
+
+--- Animate the alien to a specific position
+-- [Coroutines are computer program components that
+-- allow execution to be suspended and resumed,
+-- generalizing subroutines for cooperative multitasking.]
+local function animate(self, to, duration, easing)
+	local co = coroutine.running()
+	go.cancel_animations(".", "position")
+	go.animate(".", "position", go.PLAYBACK_ONCE_FORWARD, to, easing or go.EASING_LINEAR, duration, 0, function()
+		coroutine.resume(co)
+	end)
+	coroutine.yield()
+end
+
+--- Adjust the duration based on number of aliens alive and according to a
+-- pretty random formula...
+-- The fewer aliens alive the shorter the adjusted duration
+-- @param duration The duration to adjust
+-- @return The adjusted duration
+local function adjust_duration(duration)
+	return duration * (3 + (alive / 5)) / 2
+end
+
+-- Move down, end game if moving below bottom edge of screen
+local function move_down(self)
+	pos = go.get_position()
+	pos.y = pos.y - 10 -- Initial value is 2
+	animate(self, pos, adjust_duration(self.vertical_duration))
+	if pos.y <= 0 then
+		msg.post("/aliens#aliens_factory", "game_over")
+		msg.post("game_over_screen#game_over", "show_game_over")
+	end
+end
+
+-- Move left/right a certain distance. Adjust the speed of movement
+-- based on distance to travel and number of aliens alive
+local function move_left_right(self, distance)
+	pos = go.get_position()
+	pos.x = pos.x + distance
+	animate(self, pos, adjust_duration(self.horizontal_duration * math.abs(distance) / 64))
+end
+
+--- Start the movement loop for this alien
+-- The alien will drop down from outside the screen and then start moving
+-- to the right, down, left and down on and on until deleted
+local function move(self)
+	local margin = 20
+	local down = vmath.vector3(0, -2, 0)
+
+	coroutine.wrap(function()
+		-- let the alien drop in from above
+		local pos = go.get_position()
+		animate(self, pos + vmath.vector3(0, -30, 0), 1, go.EASING_OUTEXPO)
+
+		self.shoot = true
+		while true do
+			move_left_right(self, get_minimum_distance_to_right_edge() - margin)
+			move_down(self)
+			move_left_right(self, -get_minimum_distance_to_left_edge() + margin)
+			move_down(self)
+		end
+	end)()
+end
+
+function init(self)
+	table.insert(aliens, {id = go.get_id() })
+	alive = alive + 1
+	
+	go.animate(".", "rotation.z", go.PLAYBACK_ONCE_FORWARD, math.pi / 12, go.EASING_LINEAR, 1, 0, function()
+		go.animate(".", "rotation.z", go.PLAYBACK_LOOP_PINGPONG, math.pi / -12, go.EASING_LINEAR, 2)
+	end)
+end
+
+function final(self)
+	-- remove dead ones from list of alive aliens
+	local my_id = go.get_id()
+	for k,alien in pairs(aliens) do
+		if alien.id == my_id then
+			aliens[k] = nil
+		end
+	end
+	
+	alive = alive - 1
+	if alive == 0 then
+		msg.post("/aliens#aliens_factory", "next_level")
+	end
+end
+
+function update(self, dt)
+	-- is the alien allowed to shoot ?
+	if self.shoot == true
+	and socket.gettime() > (fire_timestamp + fire_interval)	-- has enough time elapsed since the last time an alien fired a bullet?
+	and math.random(1,10) == 1								-- some randomness
+	and is_in_front_row() 									-- is the alien in the front row?
+	then
+		fire_timestamp = socket.gettime()
+		factory.create("#factory", go.get_position() + vmath.vector3(0, -5, 0))
+	end
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("level_started") then
+		-- set initial speed and start movement loop depending on level
+		if message.level % 2 == 0 then
+			self.horizontal_duration = horizontal_duration
+			self.vertical_duration = vertical_duration
+		elseif message.level % 2 == 1 then
+			self.horizontal_duration = horizontal_duration / math.min(message.level, 2)
+			self.vertical_duration = vertical_duration / math.min(message.level, 2)
+		elseif message.level % 2 == 1 and message.level >= 5 then
+			self.horizontal_duration = horizontal_duration / 2.2
+			self.vertical_duration = vertical_duration / 2.2
+		elseif message.level % 2 == 1 and message.level >= 7 then
+			self.horizontal_duration = horizontal_duration / 2.3
+			self.vertical_duration = vertical_duration / 2.3
+		end
+		-- move self
+		move(self)
+	elseif message_id == hash("collision_response") then
+		if message.group == hash("bullets") then
+			particlefx.play("#alien_explosion")
+			msg.post("interface#main", "alien_destroyed")
+			go.delete()
+		end
+	elseif message_id == hash("no_shoot") then
+		self.shoot = false
+	elseif message_id == hash("can_shoot") then
+		self.shoot = true
+	end
+end

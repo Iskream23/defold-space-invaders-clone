@@ -1,0 +1,18 @@
+[bootstrap]
+main_collection = /main/main.collectionc
+render = /rendercam/rendercam.renderc
+
+[script]
+shared_state = 1
+
+[display]
+width = 938
+height = 503
+
+[android]
+input_method = HiddenInputField
+
+[project]
+title = Turtle invaded
+dependencies#0 = https://github.com/rgrams/rendercam/archive/1.0.3.zip
+

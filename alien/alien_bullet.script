@@ -1,0 +1,18 @@
+function init(self)
+	go.animate(".", "position.y", go.PLAYBACK_ONCE_FORWARD, -500, go.EASING_LINEAR, 5, 0, function()
+		go.delete()
+	end)
+
+	sound.play("#alien-shoot")
+
+	-- prevent alien bullet from rotating
+	local r = vmath.quat(0, 0, 0, 0)
+	go.set_rotation(r)
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("trigger_response") and message.enter then
+		particlefx.play("#bullet_explosion")
+		go.delete()
+	end
+end

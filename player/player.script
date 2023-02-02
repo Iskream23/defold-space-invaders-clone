@@ -1,0 +1,88 @@
+local lives = 3
+
+go.property('speed', 150)
+go.property('fire_interval', 0.6)
+
+local function game_over()
+	msg.post("/aliens#aliens_factory", "game_over")
+	msg.post("game_over_screen#game_over", "show_game_over")
+end
+
+function init(self)
+	msg.post(".", "acquire_input_focus")
+	
+	self.vel = vmath.vector3()
+	self.fire_timestamp = 0
+end
+
+-- an utility function to clamp values
+local function clamp(value, min, max)
+	if value < min then
+		return min
+	end
+	if value > max then
+		return max
+	end
+	return value
+end
+
+function update(self, dt)
+	-- change the position of the player depending on input
+	local pos = go.get_position()
+	
+	pos = pos + self.vel * dt
+	pos.x = clamp(pos.x, 110, 810)
+	
+	go.set_position(pos)
+
+	self.vel.x = 0
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("collision_response") then
+		if message.group == hash("enemies_bullets") then
+			if lives > 0 then
+				-- disable collision and give feedback to the player
+				sound.play("#player-destroy")
+				msg.post("#collisionobject", "disable")
+				go.animate("#sprite", "tint.w", go.PLAYBACK_LOOP_PINGPONG, 0, go.EASING_INOUTSINE , 0.5, 0)
+
+				-- waiting 2 seconds before enabling collision
+				timer.delay(2, false, function()
+					go.cancel_animations("#sprite", "tint.w")
+					-- I leave this here just in case
+					-- go.set("#sprite", "tint.w", 1)
+					msg.post("#collisionobject", "enable")
+				end)
+
+				-- send message to gui
+				msg.post("interface#main", "player_destroyed")
+				lives = lives - 1
+			end
+
+			-- manage game over
+			if lives == 0 then
+				sound.play("#player-destroy")
+				game_over()
+			end 
+		elseif message.group == hash("enemies") then
+			game_over()
+		end
+	end
+end
+
+function on_input(self, action_id, action)
+	-- manage inputs
+	if action_id == hash('left') then
+		self.vel.x = -self.speed
+	elseif action_id == hash('right') then
+		self.vel.x = self.speed
+	end
+
+	-- shoot a bullet if 'fire' key is down
+	if action_id == hash('fire') and socket.gettime() > (self.fire_timestamp + self.fire_interval) then
+		self.fire_timestamp = socket.gettime()
+		factory.create("#factory")
+		sound.play("#player-shoot")
+	end
+end

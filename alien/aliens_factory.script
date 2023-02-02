@@ -1,0 +1,72 @@
+local spawned_aliens = {}
+local level = 1
+local game_over = false
+
+local function start_level(mytable, level)
+	local pos = vmath.vector3()
+
+	for i = 1, 6 do
+		for j = 1, 3 do
+			pos.x = 100 + (i * 100)
+			pos.y = 250 + (j * 50)
+			local id = factory.create("#factory", pos)
+			table.insert(mytable, id)
+		end
+	end
+	
+	for _, alien_id in ipairs(mytable) do
+		msg.post(alien_id, "level_started", {level = level})
+	end
+end
+
+function does_alien_exist(id)
+	return pcall(function(id) go.get_position(id) end, id) == true
+end
+
+function init(self)
+	-- first level
+	msg.post("/interface#main", "normal_level", {level = level})
+	timer.delay(2, false, function()
+		start_level(spawned_aliens, level)
+	end)
+end
+
+function on_message(self, message_id, message, sender)
+	if message_id == hash("next_level") and game_over == false then
+		level = level + 1
+
+		-- clear the previous aliens id
+		for _, alien_id in ipairs(spawned_aliens) do
+			spawned_aliens[_] = nil
+		end
+
+		-- create new aliens and insert their id in the table
+		timer.delay(2, false, function()
+			start_level(spawned_aliens, level)
+		end)
+		
+		-- show level to the player
+		if level % 2 == 0 then
+			msg.post("/interface#main", "normal_level", {level = level})
+		elseif level % 2 == 1 and level > 1 then
+			msg.post("/interface#main", "faster_level", {level = level})
+		end
+	elseif message_id == hash("game_over") then
+		game_over = true
+		for _, alien_id in ipairs(spawned_aliens) do
+			go.delete(spawned_aliens)
+		end
+	elseif message_id == hash("game_paused") then
+		for _, alien_id in ipairs(spawned_aliens) do
+			if does_alien_exist(alien_id) then
+				msg.post(alien_id, "no_shoot")
+			end
+		end
+	elseif message_id == hash("continue_game") then
+		for _, alien_id in ipairs(spawned_aliens) do
+			if does_alien_exist(alien_id) then
+				msg.post(alien_id, "can_shoot")
+			end
+		end
+	end
+end

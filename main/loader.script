@@ -1,0 +1,30 @@
+function on_message(self, message_id, message, sender)
+	if message_id == hash("start_game") then
+		msg.post("#game_proxy", "load")	-- [1]
+	end
+	
+	if message_id == hash("proxy_loaded") then	-- [2]
+		msg.post(sender, "init")
+		msg.post(sender, "enable")
+	end
+
+	if message_id == hash("end_level") then
+		local proxy = msg.url("#game_proxy")
+		msg.post(proxy, "disable")
+		msg.post(proxy, "final")
+		msg.post(proxy, "unload")
+	elseif message_id == hash("proxy_unloaded") then
+		-- let unloader know
+		msg.post(sender, "level_ended")
+		msg.post(".", "start_game")
+	end
+end
+
+--- [1] Send a message to the proxy component telling
+-- it to start loading its collection.
+
+--- [2] When the proxy component is done loading, it
+-- sends a "proxy_loaded" message back. You can then send
+-- "init" and "enable" messages to the collection to initialize
+-- and enable the collection content. We can send these messages
+-- back to "sender" which is the proxy component.
