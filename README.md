@@ -4,7 +4,7 @@ Turtle invaded is a space invaders clone made with the Defold game engine. The o
 
 ## Installation and usage
 
-Just download the Defold game engine and open the game.project file. You'll need to install Rendercam (https://github.com/rgrams/rendercam) in your project by adding it as a library dependency.
+Just download the Defold game engine and open the game.project file.
 
 ## Contributing
 
